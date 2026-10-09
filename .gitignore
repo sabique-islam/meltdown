@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+models/*.joblib
+outputs/
+writeup/*.aux
+writeup/*.log
+writeup/*.nav
+writeup/*.out
+writeup/*.snm
+writeup/*.toc
+writeup/*.fls
+writeup/*.fdb_latexmk
+dataset/
