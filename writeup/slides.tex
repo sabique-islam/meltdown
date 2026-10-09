@@ -1,0 +1,88 @@
+\documentclass[aspectratio=169,11pt]{beamer}
+\usetheme{default}
+\usecolortheme{dove}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+\usepackage{booktabs}
+\hypersetup{pdftitle={Video Analysis of a Fruit-Fly Pair}}
+\title{Video Analysis of a Fruit-Fly Pair}
+\subtitle{Position, sex, facing direction, and male wing angles}
+\author{}
+\date{}
+
+\begin{document}
+
+\begin{frame}
+\titlepage
+\end{frame}
+
+\begin{frame}{Task and dataset}
+\begin{itemize}
+\item One male and one female in a circular well.
+\item 326 annotated frames from one recording, with body points, heads, abdomens, and male wing tips.
+\item Five video excerpts at $1530\times1530$ and 35\,fps.
+\item Random frame split: 218 training, 108 test. Seed 0.
+\item Outputs: annotated video, detection CSV, and wing-angle plot.
+\end{itemize}
+\vspace{0.5em}
+{\small Python implementation based on Steven Herbst's \href{https://cs229.stanford.edu/proj2018/report/61.pdf}{CS229 pipeline (2018)}.}
+\end{frame}
+
+\begin{frame}{Four-stage method}
+\begin{enumerate}
+\item \textbf{Body detection.} Threshold the frame. A decision tree classifies contour area as zero, one, or two flies. Keep one-fly contours and use their centroids as positions.
+\item \textbf{Sex.} Logistic regression compares both contours' areas and aspect ratios. It runs only when exactly two separate flies remain.
+\item \textbf{Heading.} Image moments give a body axis. HOG features, 15 PCA components, and logistic regression resolve the $180^\circ$ ambiguity.
+\item \textbf{Wings.} Rotate the male upright. HOG features and 40 PCA components feed one linear regressor for both wing halves. Clip angles to $0$--$90^\circ$.
+\end{enumerate}
+\end{frame}
+
+\begin{frame}{Individual model results}
+\begin{center}
+\begin{tabular}{@{}llrr@{}}
+\toprule
+Stage & Test metric & Result & Examples \\
+\midrule
+Body count & Classification error & 0\% & 329 contours \\
+Sex & Classification error & 0\% & 97 pairs \\
+Heading reversal & Classification error & 0\% & 152 flies \\
+Wing angle & Residual SD & $7.26^\circ$ & 158 wings \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vspace{0.5em}
+{\small Annotated counts select the eligible examples. The wing model uses annotated headings for alignment. These tests do not include all errors from preceding stages. Residual SD differs from mean absolute error.}
+\vspace{0.5em}
+
+{\scriptsize Source: \texttt{outputs/train\_metrics.json} and \texttt{src/train.py}.}
+\end{frame}
+
+\begin{frame}{Complete pipeline results}
+\textbf{194 of 216 labeled flies matched across 108 test frames.}
+\vspace{0.6em}
+\begin{itemize}
+\item Sex accuracy: 100\% on 194 matches.
+\item Mean heading error: $1.60^\circ$ on 152 labeled headings.
+\item Mean absolute wing error: $5.87^\circ$ on 158 wings.
+\item Mean distance from centroid to body label: 33.91 pixels.
+\end{itemize}
+\vspace{0.5em}
+{\small The evaluator accepts detections within 80 pixels of a body label. It excludes 22 unmatched flies from these accuracy and error values. Body labels mark interior points rather than silhouette centroids.}
+\vspace{0.5em}
+
+{\scriptsize Source: \texttt{outputs/train\_metrics.json}.}
+\end{frame}
+
+\begin{frame}{Runtime and limits}
+\begin{itemize}
+\item Saved demo throughput: 66.05\,fps on \texttt{test4.mp4}, compared with a source rate of 35\,fps.
+\item Timing includes video I/O, annotation, and CSV writing. It excludes the final plot and does not measure live-camera latency.
+\item Merged bodies are skipped. The program has no tracking state between frames.
+\item Training and test frames share one recording. Performance on new pairs or recording conditions is untested.
+\item Wing-angle predictions have no independently validated song labels.
+\end{itemize}
+\vspace{0.5em}
+{\scriptsize Sources: \texttt{outputs/demo\_metrics.json}, \texttt{src/demo.py}, and \texttt{src/pipeline.py}.}
+\end{frame}
+
+\end{document}

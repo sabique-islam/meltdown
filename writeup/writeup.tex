@@ -1,0 +1,89 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.75in]{geometry}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\graphicspath{{../outputs/}{outputs/}}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage[hidelinks]{hyperref}
+\titleformat{\section}{\large\bfseries}{}{0pt}{}
+\titlespacing*{\section}{0pt}{0.9em}{0.3em}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.45em}
+\setlist[enumerate]{leftmargin=*,itemsep=0.35em,topsep=0.25em}
+\hypersetup{pdftitle={Video Analysis of a Fruit-Fly Pair}}
+
+\begin{document}
+\begin{center}
+{\Large\bfseries Video Analysis of a Fruit-Fly Pair}
+\end{center}
+
+\section*{Problem statement}
+The goal is to turn a video of one male and one female fruit fly in a circular well into measurements of their position, sex, and facing direction, along with the male's left and right wing angles. Automating these measurements reduces the need to inspect each frame manually. This project implements a four-stage image-processing and machine-learning pipeline based on Steven Herbst's CS229 project~[1], with processing throughput evaluated against the video's frame rate.
+
+\section*{Dataset details}
+The supplied dataset contains 326 LabelMe-annotated frames from one courtship recording and five video excerpts at $1530\times1530$ pixels and 35\,fps. The annotations mark body points, heads, abdomens, and male wing tips. Body points link contours to labeled flies. Head and abdomen points define heading, and wing-tip points define opening angles from the tail axis.
+
+\begin{center}
+\begin{tabular}{@{}lr@{}}
+\toprule
+Frame group & Count \\
+\midrule
+General sample & 100 \\
+Flies in contact & 33 \\
+Flies along the wall & 50 \\
+Wing-angle frames from \texttt{test4.mp4} & 102 \\
+Wing-angle frames from \texttt{test1.mp4} & 41 \\
+\midrule
+Total & 326 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+A random split with seed 0 uses 218 frames for training and 108 for testing. Augmentation applies only to training examples. Both sets contain frames from the same recording.
+
+\section*{Approach}
+\begin{enumerate}
+\item \textbf{Find separate bodies.} Blur and threshold the grayscale frame to extract dark contours. A depth-2 decision tree uses contour area to classify each as zero, one, or two flies. Only one-fly contours continue. Their centroids provide position estimates.
+\item \textbf{Assign sex.} When exactly two separate flies remain, logistic regression compares their standardized areas and aspect ratios to assign male and female jointly. Otherwise, sex remains unknown. Training includes each pair in both orders.
+\item \textbf{Estimate heading.} Image moments give a body axis. Histogram of Oriented Gradients (HOG) features, reduced to 15 principal components, feed a logistic regression that resolves the $180^\circ$ ambiguity. Training includes rotated copies with reversed labels.
+\item \textbf{Estimate wing angles.} Rotate the male upright and preprocess the crop with median blur, adaptive thresholding, and erosion. HOG features from each half, with the left half mirrored, feed a shared linear regression using 40 principal components. Final angles are clipped to $0$--$90^\circ$.
+\end{enumerate}
+
+\newpage
+\section*{Implementation overview}
+Python, OpenCV, NumPy, and scikit-learn implement the pipeline. \texttt{src/dataset.py} loads annotations, \texttt{src/features.py} extracts image features, and \texttt{src/pipeline.py} predicts each frame independently. Run \texttt{python -m src.train} to fit and save the models and test metrics. Run \texttt{python -m src.demo} to generate an annotated video, detection CSV, preview image, wing-angle plot, and throughput report.
+
+\section*{Conclusions}
+The saved run reports these results on eligible test examples. Wing residual SD is the standard deviation of raw regression errors.
+
+\begin{center}
+\begin{tabular}{@{}llrr@{}}
+\toprule
+Stage & Test metric & Result & Examples \\
+\midrule
+Body count & Classification error & 0\% & 329 contours \\
+Sex & Classification error & 0\% & 97 pairs \\
+Heading reversal & Classification error & 0\% & 152 flies \\
+Wing angle & Residual SD & $7.26^\circ$ & 158 wings \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Stage tests use annotated counts to select examples and annotated headings to align wing crops. They assess models separately from errors passed down the pipeline.
+
+The complete pipeline matches \textbf{194 of 216 labeled flies} within 80 pixels of their body points. It excludes 22 unmatched flies from the errors: sex accuracy is 100\% on 194 matches, mean heading error is $1.60^\circ$ on 152 headings, and mean absolute wing error is $5.87^\circ$ on 158 wings. Mean distance from centroid to body label is 33.91 pixels. Labels mark interior body points rather than silhouette centroids.
+
+The demo reports 66.05\,fps on \texttt{test4.mp4}, above its 35\,fps source rate. Timing includes video I/O, annotation, and CSV writing, but excludes the final plot. It measures throughput for one run rather than live-camera latency.
+
+\begin{center}
+\includegraphics[width=0.80\linewidth]{wing_trace.png}\\[0.2em]
+{\small Figure 1. Predicted male wing angles over time in \texttt{test4.mp4}.}
+\end{center}
+
+The pipeline measures separate flies but skips merged bodies and has no tracking state between frames. New recording conditions remain untested. Figure~1 has no independently validated song labels. Further work should address merged bodies and test independent recordings.
+
+\vspace{0.5em}
+{\footnotesize [1] Steven Herbst, \href{https://cs229.stanford.edu/proj2018/report/61.pdf}{\emph{Real-time Detailed Video Analysis of Fruit Flies}}, CS229, 2018.\\
+Results: \texttt{outputs/train\_metrics.json} and \texttt{outputs/demo\_metrics.json}.}
+\end{document}
